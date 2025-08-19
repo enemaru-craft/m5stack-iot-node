@@ -66,6 +66,99 @@ const char* ntpServer = "ntp.nict.jp";
 const long  gmtOffset_sec = 9 * 3600; // JST = UTC+9
 const int   daylightOffset_sec = 0;
 
+// =========================
+// FreeRTOS タスク用ハンドル
+// =========================
+TaskHandle_t TaskSensorHandle;
+TaskHandle_t TaskDisplayHandle;
+
+// センサ値共有用
+float latestData = 0.0;
+float latestAvg  = 0.0;
+
+// ==================
+// センサ値取得タスク
+// ==================
+void TaskSensor(void *pvParameters) {
+  while (1) {
+    int randNum = random(0, 21);
+
+    if(latestData > 38.0){
+      pm = 1;
+    } else if (latestData < 22.0){
+      pm = 0;
+    }
+
+    if(pm == 0) {
+      latestData = latestData + (randNum / 10.0);
+    } else {
+      latestData = latestData - (randNum / 10.0);
+    }
+
+    // 移動平均を更新
+    history[idx] = latestData;
+    idx = (idx + 1) % WINDOW_SIZE;
+
+    float sum = 0;
+    int count = 0;
+    for (int i = 0; i < WINDOW_SIZE; i++) {
+      if (history[i] != 0) {
+        sum += history[i];
+        count++;
+      }
+    }
+    if (count == 0) { count = 1; sum = 0; }
+    latestAvg = sum / count;
+
+    // dataHistory に保存
+    if (dataCount < MAX_DATA_POINTS) {
+      dataHistory[dataCount++] = latestAvg;
+    } else {
+      for (int i = 1; i < MAX_DATA_POINTS; i++) {
+        dataHistory[i - 1] = dataHistory[i];
+      }
+      dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒ごと更新
+  }
+}
+
+// ==============
+// 画面描画タスク
+// ==============
+void TaskDisplay(void *pvParameters) {
+  while(1) {
+    M5.update();
+
+    // ボタン処理
+    if (M5.BtnA.wasPressed()) {
+      mode = MODE_NORMAL;
+      M5.Lcd.fillScreen(BLACK);
+    } else if (M5.BtnB.wasPressed()) {
+      mode = MODE_TEMP_GRAPH;
+      M5.Lcd.fillScreen(BLACK);
+    }
+
+    // 表示モードに応じて描画
+    if (latestAvg > 0) {
+      switch (mode) {
+        case MODE_NORMAL:
+          showData(latestAvg);
+          break;
+        case MODE_TEMP_GRAPH:
+          drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
+          break;
+      }
+    } else {
+      // エラー表示
+      ErrorView();
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒周期で描画更新
+  }
+}
+
 // セットアップ
 void setup() {
   M5.begin();
@@ -124,82 +217,32 @@ void setup() {
   M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
   M5.Lcd.setTextDatum(ML_DATUM);
   delay(2000);
+  // FreeRTOS タスク生成
+  xTaskCreatePinnedToCore(
+    TaskSensor,
+    "TaskSensor",
+    4096,
+    NULL,
+    1,
+    &TaskSensorHandle,
+    0   // Core0で実行
+  );
+
+  xTaskCreatePinnedToCore(
+    TaskDisplay,
+    "TaskDisplay",
+    8192,
+    NULL,
+    1,
+    &TaskDisplayHandle,
+    1   // Core1で実行
+  );
 }
 
 // メイン
 void loop() {
-  M5.update();
-
-  // ランダムナンバー関連
-  int randNum = random(0, 21); // ランダムナンバー生成
-
-  if(data > 38.0){
-    pm = 1;
-  } else if (data < 22.0){
-    pm = 0;
-  }
-
-  if(pm == 0) {
-    data = data + (randNum / 10.0);
-  } else{
-    data = data - (randNum / 10.0);
-  }
-
-  // ボタン処理
-  if (M5.BtnA.wasPressed()) {
-    mode = MODE_NORMAL;
-    M5.Lcd.fillScreen(BLACK);
-  } else if (M5.BtnB.wasPressed()) {
-    mode = MODE_TEMP_GRAPH;
-    M5.Lcd.fillScreen(BLACK);
-  }
-
-  // データ記録（有効なときのみ）
-  if (data > 0) {
-    // 配列に最新値を保存
-    history[idx] = data;
-    idx = (idx + 1) % WINDOW_SIZE;
-
-    // 移動平均を計算
-    float sum = 0;
-    int count = 0;
-    for (int i = 0; i < WINDOW_SIZE; i++) {
-      if (history[i] != 0) { // 初期値 0 を除外
-        sum += history[i];
-        count++;
-      }
-    }
-    if (count == 0) { //エラー処理（0除算）
-      count = 1;
-      sum = 0;
-    }
-    avg = sum / count;
-
-    // 配列に保存
-    if (dataCount < MAX_DATA_POINTS) {
-      dataHistory[dataCount++] = avg;
-    } else {
-      for (int i = 1; i < MAX_DATA_POINTS; i++) {
-        dataHistory[i - 1] = dataHistory[i];
-      }
-      dataHistory[MAX_DATA_POINTS - 1] = avg;
-    }
-
-    // 表示モードに応じた描画
-    switch (mode) {
-      case MODE_NORMAL:
-        showData(avg);
-        break;
-      case MODE_TEMP_GRAPH:
-        drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
-        break;
-    }
-  } else
-    // エラー表示
-    ErrorView();
-
   // 遅延時間
-  delay(1000); // 1秒
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 
 //データ表示
