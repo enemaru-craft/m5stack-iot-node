@@ -277,11 +277,12 @@ void drawGraph(float data[], int count, const char* title, const char* unit, uin
     viewmode = 1;
   }
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setCursor(0, 0);
   M5.Lcd.println(title);
 
-  M5.Lcd.drawRect(10, 40, 300, 150, WHITE);  // グラフ枠
+  M5.Lcd.drawRect(9, 39, 301, 151, WHITE);  // グラフ枠
+  M5.Lcd.fillRect(10, 40, 299, 149, BLACK);  // 中を埋める
 
   if (count < 2) return;
 
@@ -300,34 +301,34 @@ void drawGraph(float data[], int count, const char* title, const char* unit, uin
 
   // グラフの線を描画
   for (int i = 1; i < count; i++) {
-    int x0 = map(i - 1, 0, MAX_DATA_POINTS - 1, 10, 310);
-    int y0 = map(data[i - 1], minVal, maxVal, 190, 40);
-    int x1 = map(i, 0, MAX_DATA_POINTS - 1, 10, 310);
-    int y1 = map(data[i], minVal, maxVal, 190, 40);
+    int x0 = map(i - 1, 0, MAX_DATA_POINTS - 1, 10, 305);
+    int y0 = map(data[i - 1], minVal, maxVal, 190, 35);
+    int x1 = map(i, 0, MAX_DATA_POINTS - 1, 10, 305);
+    int y1 = map(data[i], minVal, maxVal, 190, 35);
     M5.Lcd.drawLine(x0, y0, x1, y1, color);
   }
 
   // 最新のデータ値を表示（点＋数値）
   int lastIndex = count - 1;
-  int x = map(lastIndex, 0, MAX_DATA_POINTS - 1, 10, 310);
-  int y = map(data[lastIndex], minVal, maxVal, 190, 40);
+  int x = map(lastIndex, 0, MAX_DATA_POINTS - 1, 10, 305);
+  int y = map(data[lastIndex], minVal, maxVal, 190, 35);
   M5.Lcd.fillCircle(x, y, 3, RED);  // 最新点を赤丸で表示
   if(x > 230){
     x = 230;
     y = 30;
   }
 
-  M5.Lcd.setTextColor(RED);
+  M5.Lcd.setTextColor(RED,BLACK);
   M5.Lcd.setTextSize(2);
   M5.Lcd.setCursor(x + 5, y - 10);  // 点の横に表示
   M5.Lcd.printf("%.1f%s", data[lastIndex], unit);
 
   // 上下の最大・最小値のラベル
-  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(220, 190);
+  M5.Lcd.setCursor(20, 191);
   M5.Lcd.printf("%.1f%s", minVal, unit);
-  M5.Lcd.setCursor(220, 40);
+  M5.Lcd.setCursor(20, 23);
   M5.Lcd.printf("%.1f%s", maxVal, unit);
 
   drawButton();
