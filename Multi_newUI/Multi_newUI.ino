@@ -143,9 +143,14 @@ void TaskDisplay(void *pvParameters) {
     if (latestAvg > 0) {
       switch (mode) {
         case MODE_NORMAL:
+          // データ表示の背景を描画
+          M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
+          M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
+          M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
           showData(latestAvg);
           break;
         case MODE_TEMP_GRAPH:
+          M5.Lcd.fillRect(0, 220, 320, 30, 0x8410);
           drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
           break;
       }
@@ -216,6 +221,13 @@ void setup() {
   M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
   M5.Lcd.setTextDatum(ML_DATUM);
   delay(2000);
+
+  // データ表示の背景を描画
+  M5.Lcd.clear(BLACK);
+  M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
+  M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
+  M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
+
   // FreeRTOS タスク生成
   xTaskCreatePinnedToCore(
     TaskSensor,
@@ -246,19 +258,17 @@ void loop() {
 
 //データ表示
 void showData(float data) {
-  M5.Lcd.fillScreen(BLACK);
-
   drawUI(data);
   M5.Lcd.setCursor(35,145);
   M5.Lcd.setTextSize(5);
-  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextColor(WHITE, 0x8410);
   M5.Lcd.printf("%.1f C\n", data);
 }
 
 
 // グラフ描画関数
 void drawGraph(float data[], int count, const char* title, const char* unit, uint16_t color) {
-  M5.Lcd.fillScreen(BLACK);
+  // M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(WHITE);
   M5.Lcd.setCursor(0, 0);
@@ -323,11 +333,6 @@ float roundToNerest5(float value) {
 
 // 顔、線などのUIを描画
 void drawUI(float tmp) {
-  // データ表示の背景を描画
-  M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
-  M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
-  M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
-
   // 中心点
   int centerX = M5.Lcd.width() / 2;
   int centerY = (M5.Lcd.height() / 2) - 20;
@@ -395,10 +400,9 @@ void drawButton() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     M5.Lcd.setCursor(222, y + 6);
-    M5.Lcd.println("Failed time");
+    M5.Lcd.println("Error");
     return;
   }
-  
   M5.Lcd.setCursor(220, y + 6);
   M5.Lcd.printf("%02d:%02d:%02d",
                 timeinfo.tm_hour,
