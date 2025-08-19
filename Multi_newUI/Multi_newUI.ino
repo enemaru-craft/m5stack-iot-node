@@ -324,7 +324,7 @@ float roundToNerest5(float value) {
 // 顔、線などのUIを描画
 void drawUI(float tmp) {
   // データ表示の背景を描画
-  M5.Lcd.fillRect(0, 240-120, 320, 90, 0x8410);
+  M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
   M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
   M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
 
@@ -382,7 +382,6 @@ void drawButton() {
 
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.fillRect(0, y, 320, 30, 0x8410);
 
   // Aボタン（温度表示）
   M5.Lcd.setCursor(40, y + 6);
