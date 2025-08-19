@@ -456,10 +456,8 @@ void IDUI() {
   // 中央にルームID
   M5.Lcd.setTextSize(6);
   M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.setCursor(170, 120);
+  M5.Lcd.setCursor(110, 100);
   M5.Lcd.printf("%2d", roomID);
-  M5.Lcd.setTextDatum(ML_DATUM);
 
   // 下に「決定」ガイド
   M5.Lcd.setTextSize(2);
