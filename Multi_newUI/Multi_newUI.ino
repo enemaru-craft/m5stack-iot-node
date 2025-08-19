@@ -143,14 +143,9 @@ void TaskDisplay(void *pvParameters) {
     if (latestAvg > 0) {
       switch (mode) {
         case MODE_NORMAL:
-          // データ表示の背景を描画
-          M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
-          M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
-          M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
           showData(latestAvg);
           break;
         case MODE_TEMP_GRAPH:
-          M5.Lcd.fillRect(0, 220, 320, 30, 0x8410);
           drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
           break;
       }
