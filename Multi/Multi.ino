@@ -50,7 +50,6 @@ int ErrorCount = 0;
 int face = 0;
 
 // 温度制御
-float data = 30.0;
 int pm = 0;
 
 // ルームID
@@ -73,7 +72,7 @@ TaskHandle_t TaskSensorHandle;
 TaskHandle_t TaskDisplayHandle;
 
 // センサ値共有用
-float latestData = 0.0;
+float latestData = 25.0;
 float latestAvg  = 0.0;
 
 // ==================
