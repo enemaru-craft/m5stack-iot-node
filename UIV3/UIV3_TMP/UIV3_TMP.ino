@@ -17,7 +17,6 @@
 #define WINDOW_SIZE 5
 float history[WINDOW_SIZE] = {0}; // 過去5回分の値を保存
 int idx = 0;
-float avg = 0.0;
 
 // センサ
 OneWire oneWire(ONE_WIRE_BUS);
@@ -49,9 +48,6 @@ int ErrorCount = 0;
 // 顔制御
 int face = 0;
 
-// 温度制御
-int pm = 0;
-
 // 画面モード確認用変数
 int viewmode = 0; // 0がデータ,1がグラフ
 
@@ -75,7 +71,7 @@ TaskHandle_t TaskSensorHandle;
 TaskHandle_t TaskDisplayHandle;
 
 // センサ値共有用
-float latestData = 20.0;
+float latestData = 0.0;
 float latestAvg  = 0.0;
 
 // ==================
@@ -83,19 +79,8 @@ float latestAvg  = 0.0;
 // ==================
 void TaskSensor(void *pvParameters) {
   while (1) {
-    int randNum = random(0, 21);
-
-    if(latestData > 38.0){
-      pm = 1;
-    } else if (latestData < 22.0){
-      pm = 0;
-    }
-
-    if(pm == 0) {
-      latestData = latestData + (randNum / 10.0);
-    } else {
-      latestData = latestData - (randNum / 10.0);
-    }
+    sensors.requestTemperatures(); // 温度リクエスト
+    float latestData = sensors.getTempCByIndex(0); // センサの温度を取得
 
     // 移動平均を更新
     history[idx] = latestData;
@@ -109,7 +94,7 @@ void TaskSensor(void *pvParameters) {
         count++;
       }
     }
-    if (count == 0) { count = 1; sum = 0; }
+    if (count == 0) { count = 1; sum = 0; } //エラー処理
     latestAvg = sum / count;
 
     // dataHistory に保存
@@ -184,6 +169,7 @@ void setup() {
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   delay(1000);
 
+  M5.Lcd.fillScreen(BLACK);
   while (!decided) {
     M5.update();
     IDUI(); // UI表示
@@ -217,6 +203,7 @@ void setup() {
   M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
   M5.Lcd.setTextDatum(ML_DATUM);
   delay(2000);
+  sensors.begin(); // センサ初期化
 
   // データ表示の背景を描画
   M5.Lcd.clear(BLACK);
@@ -443,11 +430,9 @@ void ErrorView() {
 
 // ルームID決定用のUIを表示
 void IDUI() {
-  M5.Lcd.clear(BLACK);
-
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
-  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextColor(WHITE,BLACK);
   M5.Lcd.setCursor(20, 20);
   M5.Lcd.print("-");
 
@@ -465,7 +450,7 @@ void IDUI() {
 
   // 下に「決定」ガイド
   M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(YELLOW);
+  M5.Lcd.setTextColor(YELLOW,BLACK);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
 }

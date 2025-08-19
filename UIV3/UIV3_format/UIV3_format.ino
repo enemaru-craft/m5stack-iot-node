@@ -17,7 +17,6 @@
 #define WINDOW_SIZE 5
 float history[WINDOW_SIZE] = {0}; // 過去5回分の値を保存
 int idx = 0;
-float avg = 0.0;
 
 // センサ
 OneWire oneWire(ONE_WIRE_BUS);
@@ -109,7 +108,7 @@ void TaskSensor(void *pvParameters) {
         count++;
       }
     }
-    if (count == 0) { count = 1; sum = 0; }
+    if (count == 0) { count = 1; sum = 0; } // エラー処理
     latestAvg = sum / count;
 
     // dataHistory に保存
@@ -184,6 +183,7 @@ void setup() {
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   delay(1000);
 
+  M5.Lcd.clear(BLACK);
   while (!decided) {
     M5.update();
     IDUI(); // UI表示
@@ -443,8 +443,6 @@ void ErrorView() {
 
 // ルームID決定用のUIを表示
 void IDUI() {
-  M5.Lcd.clear(BLACK);
-
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
