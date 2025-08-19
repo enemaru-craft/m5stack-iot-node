@@ -52,6 +52,9 @@ int face = 0;
 // 温度制御
 int pm = 0;
 
+// 画面モード確認用変数
+int viewmode = 0; // 0がデータ,1がグラフ
+
 // ルームID
 int roomID = 0;
 bool decided = false; // 決定されたかどうか
@@ -133,10 +136,8 @@ void TaskDisplay(void *pvParameters) {
     // ボタン処理
     if (M5.BtnA.wasPressed()) {
       mode = MODE_NORMAL;
-      M5.Lcd.fillScreen(BLACK);
     } else if (M5.BtnB.wasPressed()) {
       mode = MODE_TEMP_GRAPH;
-      M5.Lcd.fillScreen(BLACK);
     }
 
     // 表示モードに応じて描画
@@ -253,6 +254,13 @@ void loop() {
 
 //データ表示
 void showData(float data) {
+  if (viewmode == 1) { //変更後の最初のみ実行
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
+    M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
+    M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
+    viewmode = 0;
+  }
   drawUI(data);
   M5.Lcd.setCursor(35,145);
   M5.Lcd.setTextSize(5);
@@ -263,7 +271,11 @@ void showData(float data) {
 
 // グラフ描画関数
 void drawGraph(float data[], int count, const char* title, const char* unit, uint16_t color) {
-  // M5.Lcd.fillScreen(BLACK);
+  if (viewmode == 0) { //変更後の最初のみ実行
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.fillRect(0, 207, 320, 37, 0x8410);
+    viewmode = 1;
+  }
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(WHITE);
   M5.Lcd.setCursor(0, 0);
