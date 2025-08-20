@@ -241,7 +241,7 @@ void loop() {
 
 //データ表示
 void showData(float data) {
-  if (viewmode == 1) { //変更後の最初のみ実行
+  if (viewmode != 0) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
     M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
@@ -258,7 +258,7 @@ void showData(float data) {
 
 // グラフ描画関数
 void drawGraph(float data[], int count, const char* title, const char* unit, uint16_t color) {
-  if (viewmode == 0) { //変更後の最初のみ実行
+  if (viewmode != 1) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 207, 320, 37, 0x8410);
     viewmode = 1;
@@ -407,6 +407,7 @@ void drawButton() {
 
 // エラー表示
 void ErrorView() {
+  viewmode = 2;
   M5.Lcd.setTextSize(3);
   M5.Lcd.fillScreen(RED);
   M5.Lcd.setTextColor(WHITE);
