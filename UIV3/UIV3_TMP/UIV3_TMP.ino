@@ -82,29 +82,31 @@ void TaskSensor(void *pvParameters) {
     sensors.requestTemperatures(); // 温度リクエスト
     float latestData = sensors.getTempCByIndex(0); // センサの温度を取得
 
-    // 移動平均を更新
-    history[idx] = latestData;
-    idx = (idx + 1) % WINDOW_SIZE;
+    if (latestData > 0) {
+      // 移動平均を更新
+      history[idx] = latestData;
+      idx = (idx + 1) % WINDOW_SIZE;
 
-    float sum = 0;
-    int count = 0;
-    for (int i = 0; i < WINDOW_SIZE; i++) {
-      if (history[i] != 0) {
-        sum += history[i];
-        count++;
+      float sum = 0;
+      int count = 0;
+      for (int i = 0; i < WINDOW_SIZE; i++) {
+        if (history[i] != 0) {
+          sum += history[i];
+          count++;
+        }
       }
-    }
-    if (count == 0) { count = 1; sum = 0; } //エラー処理
-    latestAvg = sum / count;
+      if (count == 0) { count = 1; sum = 0; } //エラー処理
+      latestAvg = sum / count;
 
-    // dataHistory に保存
-    if (dataCount < MAX_DATA_POINTS) {
-      dataHistory[dataCount++] = latestAvg;
-    } else {
-      for (int i = 1; i < MAX_DATA_POINTS; i++) {
-        dataHistory[i - 1] = dataHistory[i];
+      // dataHistory に保存
+      if (dataCount < MAX_DATA_POINTS) {
+        dataHistory[dataCount++] = latestAvg;
+      } else {
+        for (int i = 1; i < MAX_DATA_POINTS; i++) {
+          dataHistory[i - 1] = dataHistory[i];
+        }
+        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
       }
-      dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
     }
 
     vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒ごと更新
@@ -126,7 +128,7 @@ void TaskDisplay(void *pvParameters) {
     }
 
     // 表示モードに応じて描画
-    if (latestAvg > 0) {
+    if (latestData > 0) {
       switch (mode) {
         case MODE_NORMAL:
           showData(latestAvg);
@@ -155,8 +157,20 @@ void setup() {
   WiFi.begin(ssid, pass);
   while( WiFi.status() != WL_CONNECTED) {
     delay(500); 
-    M5.Lcd.print("."); 
+    M5.Lcd.print(".");
+    ErrorCount++;
+    if (ErrorCount > 10){
+      M5.Lcd.setTextColor(WHITE);
+      M5.Lcd.fillScreen(RED);
+      M5.Lcd.setCursor(50, 10);
+      M5.Lcd.println(" ");
+      M5.Lcd.println("Sensor Error");
+      M5.Lcd.println("Reboot...");
+      delay(1000);
+      ESP.restart();
+    } 
   }
+  ErrorCount = 0; // エラーカウントリセット
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.println("WiFi connected");
   M5.Lcd.print("IP address = ");
