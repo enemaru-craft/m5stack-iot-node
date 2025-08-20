@@ -80,7 +80,7 @@ float latestAvg  = 0.0;
 void TaskSensor(void *pvParameters) {
   while (1) {
     sensors.requestTemperatures(); // 温度リクエスト
-    float latestData = sensors.getTempCByIndex(0); // センサの温度を取得
+    latestData = sensors.getTempCByIndex(0); // センサの温度を取得
 
     if (latestData > 0) {
       // 移動平均を更新
