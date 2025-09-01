@@ -10,6 +10,9 @@
 #include "pic2.h"
 #include "pic3.h"
 
+// wifi接続用のヘッダファイル
+#include "wifi.h"
+
 // GPIOデータピン
 #define ONE_WIRE_BUS 26
 
@@ -57,10 +60,6 @@ int viewmode = 0; // 0がデータ,1がグラフ
 // ルームID
 int roomID = 0;
 bool decided = false; // 決定されたかどうか
-
-// WiFi設定
-const char* ssid     = "TsUki";
-const char* pass = "123456789";
 
 // NTPサーバ設定
 const char* ntpServer = "ntp.nict.jp";
@@ -166,7 +165,7 @@ void setup() {
   M5.Lcd.setTextSize(2);
 
   // WiFI接続
-  WiFi.begin(ssid, pass);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   while( WiFi.status() != WL_CONNECTED) {
     delay(500); 
     M5.Lcd.print("."); 
