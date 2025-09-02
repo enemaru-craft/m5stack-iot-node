@@ -12,5 +12,5 @@
 # ライブラリキャッシュ
 /libraries/
 
-# WiFi情報を含むファイルは無視
+cert.h
 wifi.h
