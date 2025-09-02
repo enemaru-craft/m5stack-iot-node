@@ -5,9 +5,6 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
-//#include "ca_cert.h"
-//#include "client_cert.h"
-//#include "client_key.h"
 #include <PubSubClient.h>
 #include <HTTPClient.h>
 #include "time.h"
@@ -19,11 +16,6 @@
 
 // 通信関連ヘッダファイル
 #include "cert.h"
-//#include "wifi.h"
-//#include "url.h"
-//#include "mqtt_server.h"
-
-//const char* ca_cert =
 
 // GPIOデータピン
 #define ONE_WIRE_BUS 26
