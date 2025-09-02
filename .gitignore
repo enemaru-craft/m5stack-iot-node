@@ -1,0 +1,16 @@
+# Arduinoビルドファイル
+*.bin
+*.elf
+*.hex
+*.eep
+*.map
+*.log
+
+# プリコンパイルディレクトリ
+.build/
+
+# ライブラリキャッシュ
+/libraries/
+
+cert.h
+wifi.h
