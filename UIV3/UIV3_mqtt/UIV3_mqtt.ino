@@ -52,6 +52,9 @@ DisplayMode mode = MODE_NORMAL;
 // エラーカウント
 int ErrorCount = 0;
 
+//通信カウント
+int SigCount = 0;
+
 // 顔制御
 int face = 0;
 
@@ -135,18 +138,22 @@ void TaskSensor(void *pvParameters) {
     }
 
     // JSON形式で送信
-    char payload[256];
-    snprintf(payload, sizeof(payload),
-            "{"
-              "\"sessionId\":\"%s\","
-              "\"deviceId\":\"%s\","
-              "\"power\":%.2f,"
-              "\"gpsLat\":\"35.10274\","
-              "\"gpsLon\":\"137.14667\""
-            "}",
-            sessionID, deviceId, latestAvg);
-
-    mqttClient.publish(mqtt_topic, payload);
+    if (SigCount < 3)
+      SigCount++;
+    else {
+      char payload[256];
+      snprintf(payload, sizeof(payload),
+              "{"
+                "\"sessionId\":\"%s\","
+                "\"deviceId\":\"%s\","
+                "\"power\":%.2f,"
+                "\"gpsLat\":\"35.10274\","
+                "\"gpsLon\":\"137.14667\""
+              "}",
+              sessionID, deviceId, latestAvg);
+      mqttClient.publish(mqtt_topic, payload);
+      SigCount = 0;
+    }
 
     vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒ごと更新
   }
