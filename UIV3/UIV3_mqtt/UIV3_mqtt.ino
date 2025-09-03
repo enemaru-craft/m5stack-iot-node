@@ -334,6 +334,7 @@ void registerDevice(const char* roomID, const char* deviceId, const char* device
 
       if (httpResponseCode == 200) {
         M5.Lcd.println("Register Confirmed");
+        delay(1000);
       }
  
     } else {
