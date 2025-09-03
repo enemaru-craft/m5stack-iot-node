@@ -221,15 +221,15 @@ void setup() {
     delay(500);
   }
   Serial.printf("Time synchronized: %s\n", asctime(&timeinfo));
-  M5.Lcd.setTextSize(3);
+  M5.Lcd.setTextSize(2);
 
   // デバイスIDを生成
   char buf[32];
-  strftime(buf, sizeof(buf), "M5-%Y%m%d-%H%M%S-001", &timeinfo);
+  strftime(buf, sizeof(buf), "M5-%Y%m%d%H%M%S-001", &timeinfo);
   deviceIdStr = String(buf);
   deviceId = deviceIdStr.c_str();
-  M5.Lcd.printf("Generated Device ID:\n" + deviceIdStr + "\n");
-  delay(1000);
+  M5.Lcd.println("Generated Device ID:\n" + deviceIdStr);
+  delay(3000);
 
   M5.Lcd.clear(BLACK);
   while (!decided) {
@@ -252,7 +252,7 @@ void setup() {
 
   // ID決定後の表示
   M5.Lcd.clear(BLACK);
-  M5.Lcd.setTextSize(3);
+  M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.setTextDatum(MC_DATUM);
   M5.Lcd.drawString("SessionID Decided!", M5.Lcd.width() / 2, 100);
@@ -587,6 +587,10 @@ void ErrorView() {
 
 // ルームID決定用のUIを表示
 void IDUI() {
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(YELLOW);
+  M5.Lcd.setCursor(20, 50);
+  M5.Lcd.println("Generated Device ID:\n" + deviceIdStr);
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
@@ -600,8 +604,8 @@ void IDUI() {
   // 中央にルームID
   M5.Lcd.setTextSize(6);
   M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.setCursor(110, 100);
-  M5.Lcd.printf("%2d", sessionID);
+  M5.Lcd.setCursor(110, 120);
+  M5.Lcd.printf("%2d", roomID);
 
   // 下に「決定」ガイド
   M5.Lcd.setTextSize(2);
