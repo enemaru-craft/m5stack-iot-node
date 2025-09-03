@@ -69,7 +69,8 @@ bool decided = false; // 決定されたかどうか
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/geothermal";  // MQTTトピック
-const char* deviceId = "M5-Device-001";
+String deviceIdStr;   // 動的に生成したIDを保持
+const char* deviceId; // MQTTなどで使うポインタ
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -139,12 +140,12 @@ void TaskSensor(void *pvParameters) {
     snprintf(payload, sizeof(payload),
             "{"
               "\"sessionId\":\"%s\","
-              "\"deviceId\":\"M5-Device-001\","
+              "\"deviceId\":\"%s\","
               "\"power\":%.2f,"
               "\"gpsLat\":\"35.10274\","
               "\"gpsLon\":\"137.14667\""
             "}",
-            sessionID, latestAvg);
+            sessionID, deviceId, latestAvg);
 
     mqttClient.publish(mqtt_topic, payload);
 
@@ -220,6 +221,14 @@ void setup() {
     delay(500);
   }
   Serial.printf("Time synchronized: %s\n", asctime(&timeinfo));
+  M5.Lcd.setTextSize(3);
+
+  // デバイスIDを生成
+  char buf[32];
+  strftime(buf, sizeof(buf), "M5-%Y%m%d-%H%M%S-001", &timeinfo);
+  deviceIdStr = String(buf);
+  deviceId = deviceIdStr.c_str();
+  M5.Lcd.printf("Generated Device ID:\n" + deviceIdStr + "\n");
   delay(1000);
 
   M5.Lcd.clear(BLACK);
@@ -246,7 +255,7 @@ void setup() {
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(CYAN, BLACK);
   M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.drawString("Room ID Decided!", M5.Lcd.width() / 2, 100);
+  M5.Lcd.drawString("SessionID Decided!", M5.Lcd.width() / 2, 100);
   M5.Lcd.setTextSize(6);
   M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
   M5.Lcd.setTextDatum(ML_DATUM);
@@ -261,7 +270,7 @@ void setup() {
   // デバイス登録
   String sessionIdStr = String(roomID);      // int → String
   const char* sessionID = sessionIdStr.c_str();  // String → const char*
-  registerDevice(sessionID, "M5-Device-001", "geothermal");
+  registerDevice(sessionID, deviceId, "geothermal");
 
   // MQTT 接続
   mqttClient.setServer(mqtt_server, mqtt_port);
@@ -592,7 +601,7 @@ void IDUI() {
   M5.Lcd.setTextSize(6);
   M5.Lcd.setTextColor(GREEN, BLACK);
   M5.Lcd.setCursor(110, 100);
-  M5.Lcd.printf("%2d", roomID);
+  M5.Lcd.printf("%2d", sessionID);
 
   // 下に「決定」ガイド
   M5.Lcd.setTextSize(2);
