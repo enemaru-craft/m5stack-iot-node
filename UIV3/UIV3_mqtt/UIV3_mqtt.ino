@@ -69,8 +69,7 @@ bool decided = false; // 決定されたかどうか
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/geothermal";  // MQTTトピック
-String deviceIdStr;   // 動的に生成したIDを保持
-const char* deviceId; // MQTTなどで使うポインタ
+const char* deviceId = "M5-device-001"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -223,12 +222,8 @@ void setup() {
   Serial.printf("Time synchronized: %s\n", asctime(&timeinfo));
   M5.Lcd.setTextSize(2);
 
-  // デバイスIDを生成
-  char buf[32];
-  strftime(buf, sizeof(buf), "M5-%Y%m%d%H%M%S-001", &timeinfo);
-  deviceIdStr = String(buf);
-  deviceId = deviceIdStr.c_str();
-  M5.Lcd.println("Generated Device ID:\n" + deviceIdStr);
+  // デバイスID
+  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
   delay(3000);
 
   M5.Lcd.clear(BLACK);
@@ -590,7 +585,7 @@ void IDUI() {
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(20, 50);
-  M5.Lcd.println("Generated Device ID:\n" + deviceIdStr);
+  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
