@@ -332,6 +332,10 @@ void registerDevice(const char* roomID, const char* deviceId, const char* device
         delay(1000);
       }
 
+      if (httpResponseCode == 200) {
+        M5.Lcd.println("Register Confirmed");
+      }
+ 
     } else {
       M5.Lcd.println("Error on sending POST: " + String(httpResponseCode));
     }
