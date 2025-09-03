@@ -3,10 +3,6 @@
 #include <DallasTemperature.h>
 #include <TJpg_Decoder.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <ArduinoJson.h>
-#include <PubSubClient.h>
-#include <HTTPClient.h>
 #include "time.h"
 
 // 以下は画像C配列をインクルード
@@ -14,8 +10,8 @@
 #include "pic2.h"
 #include "pic3.h"
 
-// 通信関連ヘッダファイル
-#include "cert.h"
+// wifi接続用のヘッダファイル
+#include "wifi.h"
 
 // GPIOデータピン
 #define ONE_WIRE_BUS 26
@@ -52,14 +48,8 @@ DisplayMode mode = MODE_NORMAL;
 // エラーカウント
 int ErrorCount = 0;
 
-//通信カウント
-int SigCount = 0;
-
 // 顔制御
 int face = 0;
-
-// 温度制御
-int pm = 0;
 
 // 画面モード確認用変数
 int viewmode = 0; // 0がデータ,1がグラフ
@@ -67,19 +57,6 @@ int viewmode = 0; // 0がデータ,1がグラフ
 // ルームID
 int roomID = 0;
 bool decided = false; // 決定されたかどうか
-
-//MQTT
-WiFiClientSecure secureClient;
-PubSubClient mqttClient(secureClient);
-const char* mqtt_topic = "register/geothermal";  // MQTTトピック
-const char* deviceId = "M5-device-001"; 
-const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
-const int   mqtt_port   = 8883;    // TLSなら8883
-
-// NTPサーバ設定
-const char* ntpServer = "ntp.nict.jp";
-const long  gmtOffset_sec = 9 * 3600; // JST = UTC+9
-const int   daylightOffset_sec = 0;
 
 // =========================
 // FreeRTOS タスク用ハンドル
@@ -95,67 +72,51 @@ float latestAvg  = 0.0;
 // センサ値取得タスク
 // ==================
 void TaskSensor(void *pvParameters) {
-  String sessionIdStr = String(roomID);      // int → String
-  const char* sessionID = sessionIdStr.c_str();  // String → const char*
+  static int buttonCCount = 0;
+  static unsigned long lastTime = 0;
+
   while (1) {
-    int randNum = random(0, 21);
+    M5.update();
 
-    if(latestData > 38.0){
-      pm = 1;
-    } else if (latestData < 22.0){
-      pm = 0;
+    if (M5.BtnC.wasPressed()) {
+      buttonCCount++;
     }
 
-    if(pm == 0) {
-      latestData = latestData + (randNum / 10.0);
-    } else {
-      latestData = latestData - (randNum / 10.0);
-    }
+    // 1秒ごとに移動平均計算
+    if (millis() - lastTime >= 1000) {
+      // 移動平均更新
+      history[idx] = buttonCCount;
+      idx = (idx + 1) % WINDOW_SIZE;
 
-    // 移動平均を更新
-    history[idx] = latestData;
-    idx = (idx + 1) % WINDOW_SIZE;
-
-    float sum = 0;
-    int count = 0;
-    for (int i = 0; i < WINDOW_SIZE; i++) {
-      if (history[i] != 0) {
-        sum += history[i];
-        count++;
+      float sum = 0;
+      int count = 0;
+      for (int i = 0; i < WINDOW_SIZE; i++) {
+        if (history[i] != 0) { sum += history[i]; count++; }
       }
-    }
-    if (count == 0) { count = 1; sum = 0; } // エラー処理
-    latestAvg = sum / count;
+      if (count == 0) { count = 1; sum = 0; }
+      latestAvg = sum / count;
 
-    // dataHistory に保存
-    if (dataCount < MAX_DATA_POINTS) {
-      dataHistory[dataCount++] = latestAvg;
-    } else {
-      for (int i = 1; i < MAX_DATA_POINTS; i++) {
-        dataHistory[i - 1] = dataHistory[i];
+      // 履歴に追加
+      if (dataCount < MAX_DATA_POINTS) {
+        dataHistory[dataCount++] = latestAvg;
+      } else {
+        for (int i = 1; i < MAX_DATA_POINTS; i++) dataHistory[i - 1] = dataHistory[i];
+        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
       }
-      dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+
+      // カウントリセット
+      buttonCCount = 0;
+      lastTime = millis();
     }
 
-    // JSON形式で送信
-    if (SigCount < 3)
-      SigCount++;
-    else {
-      char payload[256];
-      snprintf(payload, sizeof(payload),
-              "{"
-                "\"sessionId\":\"%s\","
-                "\"deviceId\":\"%s\","
-                "\"power\":%.2f,"
-                "\"gpsLat\":\"35.10274\","
-                "\"gpsLon\":\"137.14667\""
-              "}",
-              sessionID, deviceId, latestAvg);
-      mqttClient.publish(mqtt_topic, payload);
-      SigCount = 0;
+    // ボタン処理
+    if (M5.BtnA.wasPressed()) {
+      mode = MODE_NORMAL;
+    } else if (M5.BtnB.wasPressed()) {
+      mode = MODE_TEMP_GRAPH;
     }
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒ごと更新
+    vTaskDelay(10 / portTICK_PERIOD_MS); // 少し待機
   }
 }
 
@@ -166,28 +127,15 @@ void TaskDisplay(void *pvParameters) {
   while(1) {
     M5.update();
 
-    // ボタン処理
-    if (M5.BtnA.wasPressed()) {
-      mode = MODE_NORMAL;
-    } else if (M5.BtnB.wasPressed()) {
-      mode = MODE_TEMP_GRAPH;
-    }
-
     // 表示モードに応じて描画
-    if (latestAvg > 0) {
-      switch (mode) {
-        case MODE_NORMAL:
-          showData(latestAvg);
-          break;
-        case MODE_TEMP_GRAPH:
-          drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
-          break;
-      }
-    } else {
-      // エラー表示
-      ErrorView();
+    switch (mode) {
+      case MODE_NORMAL:
+        showData(latestAvg);
+        break;
+      case MODE_TEMP_GRAPH:
+        drawGraph(dataHistory, dataCount, "Temp Graph", "kW", PINK);
+        break;
     }
-
     vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒周期で描画更新
   }
 }
@@ -195,15 +143,8 @@ void TaskDisplay(void *pvParameters) {
 // セットアップ
 void setup() {
   M5.begin();
-  randomSeed(analogRead(0)); //ランダムナンバーの種
   M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(2);
-  // TLS ログをデバッグレベルに設定
-  esp_log_level_set("wifi", ESP_LOG_INFO);          // WiFiのログ
-  esp_log_level_set("tls", ESP_LOG_VERBOSE);        // TLSの詳細ログ
-  esp_log_level_set("ssl", ESP_LOG_VERBOSE);        // mbedTLSハンドシェイク
-  esp_log_level_set("mbedtls", ESP_LOG_VERBOSE);    // mbedTLS内部
-  esp_log_level_set("*", ESP_LOG_INFO);             // 全体のログレベル
 
   // WiFI接続
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -219,19 +160,6 @@ void setup() {
   M5.Lcd.setTextSize(3);
   M5.Lcd.setCursor(50, 100);
   M5.Lcd.println("Starting...");
-  // NTP初期化
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    Serial.println("Waiting for NTP time sync...");
-    delay(500);
-  }
-  Serial.printf("Time synchronized: %s\n", asctime(&timeinfo));
-  M5.Lcd.setTextSize(2);
-
-  // デバイスID
-  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
-  delay(3000);
 
   M5.Lcd.clear(BLACK);
   while (!decided) {
@@ -252,36 +180,21 @@ void setup() {
     delay(150); // チラつき防止
   }
 
-  // ID決定後の表示
-  M5.Lcd.clear(BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.drawString("SessionID Decided!", M5.Lcd.width() / 2, 100);
-  M5.Lcd.setTextSize(6);
-  M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
-  M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.setTextSize(2);
-  delay(2000);
-
-  // 証明書設定
-  secureClient.setCACert(CA_CERT);
-  secureClient.setCertificate(CLIENT_CERT);
-  secureClient.setPrivateKey(CLIENT_KEY);
-
-  // デバイス登録
-  String sessionIdStr = String(roomID);      // int → String
-  const char* sessionID = sessionIdStr.c_str();  // String → const char*
-  registerDevice(sessionID, deviceId, "geothermal");
-
-  // MQTT 接続
-  mqttClient.setServer(mqtt_server, mqtt_port);
-  connectMQTT();
-
   // TJpg_Decoder 初期化
   TJpgDec.setJpgScale(2);          // 1/2倍
   TJpgDec.setSwapBytes(true);      // エンディアン調整
   TJpgDec.setCallback(tft_output); // 出力関数登録
+
+  // ID決定後の表示
+  M5.Lcd.clear(BLACK);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.setTextColor(CYAN, BLACK);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.drawString("Room ID Decided!", M5.Lcd.width() / 2, 100);
+  M5.Lcd.setTextSize(6);
+  M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  delay(2000);
 
   // データ表示の背景を描画
   M5.Lcd.clear(BLACK);
@@ -311,87 +224,6 @@ void setup() {
   );
 }
 
-//httpリクエスト
-void registerDevice(const char* roomID, const char* deviceId, const char* deviceType) {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(API_URL);
-    http.addHeader("Content-Type", "application/json");
-
-    // JSON 作成
-    StaticJsonDocument<200> doc;
-    doc["sessionId"] = roomID;
-    doc["deviceId"]  = deviceId;
-    doc["deviceType"] = deviceType;
-
-    String jsonStr;
-    serializeJson(doc, jsonStr);
-
-    int httpResponseCode = http.POST(jsonStr);
-
-    if (httpResponseCode > 0) {
-      String response = http.getString();
-      M5.Lcd.fillScreen(BLACK);
-      M5.Lcd.setTextColor(WHITE, BLACK);
-      M5.Lcd.setCursor(0, 0);
-      M5.Lcd.println("HTTP Response code: " + String(httpResponseCode));
-      M5.Lcd.println("Response: " + response);
-
-      // デバイスが既に存在する場合はスキップ
-      if (httpResponseCode == 404 && response.indexOf("already exists") >= 0) {
-        M5.Lcd.println("Device already registered, skipping...");
-        delay(1000);
-      }
-
-      if (httpResponseCode == 200) {
-        M5.Lcd.println("Register Confirmed");
-        delay(1000);
-      }
- 
-    } else {
-      M5.Lcd.println("Error on sending POST: " + String(httpResponseCode));
-    }
-
-    http.end();
-  } else {
-    M5.Lcd.println("WiFi not connected!");
-  }
-}
-
-
-// MQTT 接続関数
-void connectMQTT() {
-  M5.Lcd.clear(BLACK);
-  M5.Lcd.setTextColor(WHITE, BLACK);
-  M5.Lcd.setCursor(0, 0);
-  M5.Lcd.println("Connecting to MQTT...");
-
-  while (!mqttClient.connected()) {
-    M5.Lcd.setCursor(0, 0);
-    if (mqttClient.connect(deviceId)) {
-      M5.Lcd.println("Connected to MQTT broker!");
-      delay(2000);
-    } else {
-      M5.Lcd.print("Failed, rc=");
-      M5.Lcd.print(mqttClient.state());
-      M5.Lcd.println(" try again in 2 seconds");
-
-      // ここで WiFi/IP 情報を確認すると便利
-      M5.Lcd.print("WiFi status: ");
-      M5.Lcd.println(WiFi.status());
-      M5.Lcd.print("IP: ");
-      M5.Lcd.println(WiFi.localIP());
-      M5.Lcd.print("MQTT server: ");
-      M5.Lcd.println(mqtt_server);
-      M5.Lcd.print("Port: ");
-      M5.Lcd.println(mqtt_port);
-
-      delay(2000);
-      M5.Lcd.clear(BLACK);
-    }
-  }
-}
-
 // メイン
 void loop() {
   // 遅延時間
@@ -411,7 +243,7 @@ void showData(float data) {
   M5.Lcd.setCursor(35,145);
   M5.Lcd.setTextSize(5);
   M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.printf("%.1f C\n", data);
+  M5.Lcd.printf("%.1f kW\n", data);
 }
 
 
@@ -492,7 +324,7 @@ void drawUI(float tmp) {
   int centerY = (M5.Lcd.height() / 2) - 20;
 
   // 温度に応じた背景色、口、写真の表示
-  if (tmp < 25.0){
+  if (tmp < 2){
     M5.Lcd.fillRect(0, 0, 320, 120, 0x000F);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -501,7 +333,7 @@ void drawUI(float tmp) {
     }
     // 配列からJPEGを描画
     TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
-  } else if (tmp < 35.0) {
+  } else if (tmp < 5) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -551,17 +383,8 @@ void drawButton() {
   M5.Lcd.print("GRAPH");
 
   // Cボタン（時計）
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    M5.Lcd.setCursor(222, y + 6);
-    M5.Lcd.println("Error");
-    return;
-  }
   M5.Lcd.setCursor(220, y + 6);
-  M5.Lcd.printf("%02d:%02d:%02d",
-                timeinfo.tm_hour,
-                timeinfo.tm_min,
-                timeinfo.tm_sec);
+  M5.Lcd.printf("DATA");
 }
 
 // エラー表示
@@ -589,10 +412,6 @@ void ErrorView() {
 
 // ルームID決定用のUIを表示
 void IDUI() {
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(YELLOW);
-  M5.Lcd.setCursor(20, 50);
-  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
@@ -606,7 +425,7 @@ void IDUI() {
   // 中央にルームID
   M5.Lcd.setTextSize(6);
   M5.Lcd.setTextColor(GREEN, BLACK);
-  M5.Lcd.setCursor(110, 120);
+  M5.Lcd.setCursor(110, 100);
   M5.Lcd.printf("%2d", roomID);
 
   // 下に「決定」ガイド
