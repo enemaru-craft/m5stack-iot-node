@@ -242,6 +242,7 @@ void showData(float data) {
   M5.Lcd.setCursor(25,145);
   M5.Lcd.setTextSize(5);
   M5.Lcd.setTextColor(WHITE, 0x8410);
+  M5.Lcd.fillRect(0, 240-115, 240, 55, 0x8410);
   M5.Lcd.printf("%.0f kW\n", data);
 }
 
@@ -331,7 +332,7 @@ void drawUI(float tmp) {
       M5.Lcd.drawPixel(centerX + i, centerY - 20 + y, WHITE);
     }
     // 配列からJPEGを描画
-    TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
+    TJpgDec.drawJpg(240, 122, pic1, sizeof(pic1));
   } else if (tmp < 3000) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
@@ -339,7 +340,7 @@ void drawUI(float tmp) {
       int y = (int)(0.0 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic2, sizeof(pic2));
+    TJpgDec.drawJpg(240, 122, pic2, sizeof(pic2));
   } else {
     M5.Lcd.fillRect(0, 0, 320, 120, 0xFA20);
     // 口（弧状の線で再現）
@@ -347,7 +348,7 @@ void drawUI(float tmp) {
       int y = (int)(-0.02 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic3, sizeof(pic3));
+    TJpgDec.drawJpg(240, 122, pic3, sizeof(pic3));
   }
 
   // センサ情報が更新されるたびに目のかたちを変更
