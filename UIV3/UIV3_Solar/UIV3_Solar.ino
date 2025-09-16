@@ -323,7 +323,7 @@ void drawUI(float tmp) {
   int centerY = (M5.Lcd.height() / 2) - 20;
 
   // 温度に応じた背景色、口、写真の表示
-  if (tmp < 25.0){
+  if (tmp < 1500){
     M5.Lcd.fillRect(0, 0, 320, 120, 0x000F);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -332,7 +332,7 @@ void drawUI(float tmp) {
     }
     // 配列からJPEGを描画
     TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
-  } else if (tmp < 35.0) {
+  } else if (tmp < 3000) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
