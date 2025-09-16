@@ -150,7 +150,7 @@ void TaskSensor(void *pvParameters) {
                 "\"gpsLat\":\"35.10274\","
                 "\"gpsLon\":\"137.14667\""
               "}",
-              sessionID, deviceId, latestAvg);
+              sessionID, deviceId, (latestAvg * 1));
       mqttClient.publish(mqtt_topic, payload);
       SigCount = 0;
     }
