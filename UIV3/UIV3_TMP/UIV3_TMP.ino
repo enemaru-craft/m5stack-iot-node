@@ -198,6 +198,7 @@ void setup() {
   M5.Lcd.clear(BLACK);
   while (!decided) {
     M5.update();
+    sensors.begin();
     IDUI(); // UI表示
 
     // ボタン操作
