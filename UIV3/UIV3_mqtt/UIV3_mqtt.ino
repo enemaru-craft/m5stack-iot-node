@@ -226,7 +226,7 @@ void setup() {
     delay(150); // チラつき防止
   }
   
-snprintf(deviceId, sizeof(deviceId),
+  snprintf(deviceId, sizeof(deviceId),
          "M5-%d-%s-%s", roomID, device_type, deviceNO);
 
   // ID決定後の表示
