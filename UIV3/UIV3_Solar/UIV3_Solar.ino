@@ -17,6 +17,16 @@
 // 通信関連ヘッダファイル
 #include "cert.h"
 
+//MQTT
+WiFiClientSecure secureClient;
+PubSubClient mqttClient(secureClient);
+const char* mqtt_topic = "register/solar";  // MQTTトピック
+const char* device_type = "solar";
+char deviceId[64];  // 必要な長さを確保
+const char* deviceNO = "01"; 
+const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
+const int   mqtt_port   = 8883;    // TLSなら8883
+
 // GPIOデータピン
 #define LIGHT_SENSOR_PIN 36
 
@@ -63,14 +73,6 @@ int viewmode = 0; // 0がデータ,1がグラフ
 // ルームID
 int roomID = 0;
 bool decided = false; // 決定されたかどうか
-
-//MQTT
-WiFiClientSecure secureClient;
-PubSubClient mqttClient(secureClient);
-const char* mqtt_topic = "register/solar";  // MQTTトピック
-const char* deviceId = "M5-device-001"; 
-const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
-const int   mqtt_port   = 8883;    // TLSなら8883
 
 // NTPサーバ設定
 const char* ntpServer = "ntp.nict.jp";
@@ -184,6 +186,46 @@ void setup() {
   esp_log_level_set("mbedtls", ESP_LOG_VERBOSE);    // mbedTLS内部
   esp_log_level_set("*", ESP_LOG_INFO);             // 全体のログレベル
 
+  M5.Lcd.clear(BLACK);
+  while (!decided) {
+    M5.update();
+    IDUI(); // UI表示
+
+    // ボタン操作
+    if (M5.BtnA.wasPressed()) {
+      if (roomID > 0) roomID--;   // マイナス防止
+    }
+    if (M5.BtnC.wasPressed()) {
+      roomID++;
+    }
+    if (M5.BtnB.wasPressed()) {
+      decided = true;
+    }
+
+    delay(150); // チラつき防止
+  }
+  
+  snprintf(deviceId, sizeof(deviceId),
+         "M5-%d-%s-%s", roomID, device_type, deviceNO);
+
+  // ID決定後の表示
+  M5.Lcd.clear(BLACK);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setTextColor(CYAN, BLACK);
+  M5.Lcd.setTextDatum(MC_DATUM);
+  M5.Lcd.drawString("SessionID Decided!", M5.Lcd.width() / 2, 100);
+  M5.Lcd.setTextSize(6);
+  M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
+  M5.Lcd.setTextDatum(ML_DATUM);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(10, 200);
+  M5.Lcd.println(String("Generated Device ID:\n   ") + deviceId);
+  delay(3000);
+
+  M5.Lcd.setTextColor(WHITE, BLACK);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(0, 0);
+
   // WiFI接続
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   while( WiFi.status() != WL_CONNECTED) {
@@ -207,41 +249,7 @@ void setup() {
   }
   Serial.printf("Time synchronized: %s\n", asctime(&timeinfo));
   M5.Lcd.setTextSize(2);
-
-  // デバイスID
-  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
   delay(3000);
-
-  M5.Lcd.clear(BLACK);
-  while (!decided) {
-    M5.update();
-    IDUI(); // UI表示
-
-    // ボタン操作
-    if (M5.BtnA.wasPressed()) {
-      if (roomID > 0) roomID--;   // マイナス防止
-    }
-    if (M5.BtnC.wasPressed()) {
-      roomID++;
-    }
-    if (M5.BtnB.wasPressed()) {
-      decided = true;
-    }
-
-    delay(150); // チラつき防止
-  }
-
-  // ID決定後の表示
-  M5.Lcd.clear(BLACK);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setTextColor(CYAN, BLACK);
-  M5.Lcd.setTextDatum(MC_DATUM);
-  M5.Lcd.drawString("SessionID Decided!", M5.Lcd.width() / 2, 100);
-  M5.Lcd.setTextSize(6);
-  M5.Lcd.drawString(String(roomID), M5.Lcd.width() / 2, 160);
-  M5.Lcd.setTextDatum(ML_DATUM);
-  M5.Lcd.setTextSize(2);
-  delay(2000);
 
   // 証明書設定
   secureClient.setCACert(CA_CERT);
@@ -572,7 +580,7 @@ void IDUI() {
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(20, 50);
-  M5.Lcd.println(String("Generated Device ID:\n") + deviceId);
+  M5.Lcd.println(String("Set ID:\n   M5-sessionID-") + device_type +String("-")+ deviceNO);
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
