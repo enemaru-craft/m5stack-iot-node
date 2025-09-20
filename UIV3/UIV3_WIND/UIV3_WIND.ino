@@ -1,5 +1,4 @@
 #include <M5Stack.h>
-#include <OneWire.h>
 #include <DallasTemperature.h>
 #include <TJpg_Decoder.h>
 #include <WiFi.h>
@@ -21,28 +20,25 @@
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
-const char* device_type = "geothermal";
+const char* device_type = "wind";
 char deviceId[64];  // 必要な長さを確保
 const char* deviceNO = "00"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
-// GPIOデータピン
-#define ONE_WIRE_BUS 26
+// Port A のピンをUARTに利用
+// SDA(GPIO21) → RX, SCL(GPIO22) → TX
+HardwareSerial SensorSerial(2);
 
 // 移動平均用
 #define WINDOW_SIZE 5
 float history[WINDOW_SIZE] = {0}; // 過去5回分の値を保存
 int idx = 0;
 
-// センサ
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-
 // データ最大保存数
-#define MAX_DATA_POINTS 100
+#define MAX_DATA_POINTS 10
 
-// 温度保存用配列
+// データ保存用配列
 float dataHistory[MAX_DATA_POINTS];
 int dataCount = 0;
 
@@ -100,49 +96,45 @@ void TaskSensor(void *pvParameters) {
   String sessionIdStr = String(roomID);      // int → String
   const char* sessionID = sessionIdStr.c_str();  // String → const char*
   while (1) {
-    int randNum = random(0, 21);
+    if (SensorSerial.available()) {
+      // センサ値を取得
+      String data1 = SensorSerial.readStringUntil('\n'); // フラグ
+      String data2 = SensorSerial.readStringUntil('\n'); // 風力
+      String data3 = SensorSerial.readStringUntil('\n'); // 気圧
+      String data4 = SensorSerial.readStringUntil('\n'); // 温度
+      data1.trim(); data2.trim(); data3.trim(); data4.trim();
 
-    if(latestData > 38.0){
-      pm = 1;
-    } else if (latestData < 22.0){
-      pm = 0;
-    }
+      // アルファベットと空白をなくす処理
+      int spaceIndex = data2.indexOf(' ');  // 空白の位置を探す
+      String numStr = data2.substring(spaceIndex + 1);  
+      latestData = numStr.toFloat(); 
 
-    if(pm == 0) {
-      latestData = latestData + (randNum / 10.0);
-    } else {
-      latestData = latestData - (randNum / 10.0);
-    }
+      // 移動平均を更新
+      history[idx] = latestData;
+      idx = (idx + 1) % WINDOW_SIZE;
 
-    // 移動平均を更新
-    history[idx] = latestData;
-    idx = (idx + 1) % WINDOW_SIZE;
-
-    float sum = 0;
-    int count = 0;
-    for (int i = 0; i < WINDOW_SIZE; i++) {
-      if (history[i] != 0) {
-        sum += history[i];
-        count++;
+      float sum = 0;
+      int count = 0;
+      for (int i = 0; i < WINDOW_SIZE; i++) {
+        if (history[i] != 0) {
+          sum += history[i];
+          count++;
+        }
       }
-    }
-    if (count == 0) { count = 1; sum = 0; } // エラー処理
-    latestAvg = sum / count;
+      if (count == 0) { count = 1; sum = 0; } // エラー処理
+      latestAvg = sum / count;
 
-    // dataHistory に保存
-    if (dataCount < MAX_DATA_POINTS) {
-      dataHistory[dataCount++] = latestAvg;
-    } else {
-      for (int i = 1; i < MAX_DATA_POINTS; i++) {
-        dataHistory[i - 1] = dataHistory[i];
+      // dataHistory に保存
+      if (dataCount < MAX_DATA_POINTS) {
+        dataHistory[dataCount++] = latestAvg;
+      } else {
+        for (int i = 1; i < MAX_DATA_POINTS; i++) {
+          dataHistory[i - 1] = dataHistory[i];
+        }
+        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
       }
-      dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
-    }
 
-    // JSON形式で送信
-    if (SigCount < 3)
-      SigCount++;
-    else {
+      // JSON形式で送信
       char payload[256];
       snprintf(payload, sizeof(payload),
                 "{"
@@ -155,10 +147,9 @@ void TaskSensor(void *pvParameters) {
                 "}",
                 sessionID, deviceId, device_type, (latestAvg * 1));
       mqttClient.publish(mqtt_topic, payload);
-      SigCount = 0;
     }
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS); // 1秒ごと更新
+    vTaskDelay(100 / portTICK_PERIOD_MS); // 1秒ごと更新
   }
 }
 
@@ -177,13 +168,13 @@ void TaskDisplay(void *pvParameters) {
     }
 
     // 表示モードに応じて描画
-    if (latestAvg > 0) {
+    if (latestAvg >= 0) {
       switch (mode) {
         case MODE_NORMAL:
           showData(latestAvg);
           break;
         case MODE_TEMP_GRAPH:
-          drawGraph(dataHistory, dataCount, "Temp Graph", "C", PINK);
+          drawGraph(dataHistory, dataCount, "Wind Graph", "m/s", PINK);
           break;
       }
     } else {
@@ -198,7 +189,6 @@ void TaskDisplay(void *pvParameters) {
 // セットアップ
 void setup() {
   M5.begin();
-  randomSeed(analogRead(0)); //ランダムナンバーの種
   M5.Lcd.setTextColor(WHITE, BLACK);
   M5.Lcd.setTextSize(2);
   // TLS ログをデバッグレベルに設定
@@ -207,6 +197,9 @@ void setup() {
   esp_log_level_set("ssl", ESP_LOG_VERBOSE);        // mbedTLSハンドシェイク
   esp_log_level_set("mbedtls", ESP_LOG_VERBOSE);    // mbedTLS内部
   esp_log_level_set("*", ESP_LOG_INFO);             // 全体のログレベル
+
+  // UART初期化
+  SensorSerial.begin(19200, SERIAL_8N1, 21, 22);
 
   M5.Lcd.clear(BLACK);
   while (!decided) {
@@ -281,7 +274,7 @@ void setup() {
   // デバイス登録
   String sessionIdStr = String(roomID);      // int → String
   const char* sessionID = sessionIdStr.c_str();  // String → const char*
-  registerDevice(sessionID, deviceId, "geothermal");
+  registerDevice(sessionID, deviceId, "wind");
 
   // MQTT 接続
   mqttClient.setServer(mqtt_server, mqtt_port);
@@ -417,10 +410,11 @@ void showData(float data) {
     viewmode = 0;
   }
   drawUI(data);
-  M5.Lcd.setCursor(35,145);
-  M5.Lcd.setTextSize(5);
+  M5.Lcd.setCursor(25,145);
+  M5.Lcd.setTextSize(4);
   M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.printf("%.1f C\n", data);
+  M5.Lcd.fillRect(0, 240-115, 240, 55, 0x8410);
+  M5.Lcd.printf("%.2fm/s\n", data);
 }
 
 
@@ -469,7 +463,7 @@ void drawGraph(float data[], int count, const char* title, const char* unit, uin
   int y = map(data[lastIndex], minVal, maxVal, 190, 35);
   M5.Lcd.fillCircle(x, y, 3, RED);  // 最新点を赤丸で表示
   if(x > 230){
-    x = 230;
+    x = 220;
     y = 30;
   }
 
@@ -501,7 +495,7 @@ void drawUI(float tmp) {
   int centerY = (M5.Lcd.height() / 2) - 20;
 
   // 温度に応じた背景色、口、写真の表示
-  if (tmp < 25.0){
+  if (tmp < 2){
     M5.Lcd.fillRect(0, 0, 320, 120, 0x000F);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -509,15 +503,15 @@ void drawUI(float tmp) {
       M5.Lcd.drawPixel(centerX + i, centerY - 20 + y, WHITE);
     }
     // 配列からJPEGを描画
-    TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
-  } else if (tmp < 35.0) {
+    TJpgDec.drawJpg(240, 122, pic1, sizeof(pic1));
+  } else if (tmp < 4) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
       int y = (int)(0.0 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic2, sizeof(pic2));
+    TJpgDec.drawJpg(240, 122, pic2, sizeof(pic2));
   } else {
     M5.Lcd.fillRect(0, 0, 320, 120, 0xFA20);
     // 口（弧状の線で再現）
@@ -525,7 +519,7 @@ void drawUI(float tmp) {
       int y = (int)(-0.02 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic3, sizeof(pic3));
+    TJpgDec.drawJpg(240, 122, pic3, sizeof(pic3));
   }
 
   // センサ情報が更新されるたびに目のかたちを変更
@@ -553,7 +547,7 @@ void drawButton() {
 
   // Aボタン（温度表示）
   M5.Lcd.setCursor(40, y + 6);
-  M5.Lcd.print("TEMP");
+  M5.Lcd.print("DATA");
 
   // Bボタン（グラフ表示）
   M5.Lcd.setCursor(130, y + 6);
