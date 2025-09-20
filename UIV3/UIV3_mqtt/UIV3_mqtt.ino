@@ -20,10 +20,10 @@
 //MQTT
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
-const char* mqtt_topic = "register/geothermal";  // MQTTトピック
-const char* device_type = "geo";
+const char* mqtt_topic = "register/power";  // MQTTトピック
+const char* device_type = "geothermal";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "01"; 
+const char* deviceNO = "00"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -145,14 +145,15 @@ void TaskSensor(void *pvParameters) {
     else {
       char payload[256];
       snprintf(payload, sizeof(payload),
-              "{"
-                "\"sessionId\":\"%s\","
-                "\"deviceId\":\"%s\","
-                "\"power\":%.2f,"
-                "\"gpsLat\":\"35.10274\","
-                "\"gpsLon\":\"137.14667\""
-              "}",
-              sessionID, deviceId, (latestAvg * 1));
+                "{"
+                  "\"sessionId\":\"%s\","
+                  "\"deviceId\":\"%s\","
+                  "\"deviceType\":\"%s\","
+                  "\"power\":%.2f,"
+                  "\"gpsLat\":\"35.10274\","
+                  "\"gpsLon\":\"137.14667\""
+                "}",
+                sessionID, deviceId, device_type, (latestAvg * 1));
       mqttClient.publish(mqtt_topic, payload);
       SigCount = 0;
     }
@@ -600,7 +601,7 @@ void IDUI() {
   M5.Lcd.setTextSize(2);
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(20, 50);
-  M5.Lcd.println(String("Set ID:\n   M5-sessionID-") + device_type +String("-")+ deviceNO);
+  M5.Lcd.println(String("Set ID:\n   M5-ID-") + device_type +String("-")+ deviceNO);
   // 左ボタンの上に「-」
   M5.Lcd.setTextSize(3);
   M5.Lcd.setTextColor(WHITE);
