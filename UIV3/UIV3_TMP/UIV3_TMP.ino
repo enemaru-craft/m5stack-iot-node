@@ -248,9 +248,6 @@ void setup() {
   M5.Lcd.print("IP address = ");
   M5.Lcd.println(WiFi.localIP());
 
-  M5.Lcd.setTextSize(3);
-  M5.Lcd.setCursor(50, 100);
-  M5.Lcd.println("Starting...");
   // NTP初期化
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -280,6 +277,13 @@ void setup() {
   TJpgDec.setJpgScale(2);          // 1/2倍
   TJpgDec.setSwapBytes(true);      // エンディアン調整
   TJpgDec.setCallback(tft_output); // 出力関数登録
+
+  //データの安定化
+  M5.Lcd.clear(BLACK);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.setCursor(50, 100);
+  M5.Lcd.println("Starting...");
+  Sensor_Initialization();
 
   // データ表示の背景を描画
   M5.Lcd.clear(BLACK);
@@ -613,4 +617,30 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+// 初期データ安定化処理
+void Sensor_Initialization() {
+  int IniCount = 0;
+  M5.Lcd.setTextSize(2);
+  while (1) {
+    sensors.requestTemperatures(); // 温度リクエスト
+    latestData = sensors.getTempCByIndex(0); // センサの温度を取得
+    if (latestData > 0) {
+      if (latestData < 40) {
+        if (IniCount == 5) {
+          break;
+        } else {
+          IniCount++;
+          M5.Lcd.printf("%d ", 5 - IniCount);
+        }
+      } else {
+        M5.Lcd.println("data is unstable.");
+      }
+    } else {
+      M5.Lcd.println("data can't detect");
+    }
+
+    delay(300);
+  }
 }
