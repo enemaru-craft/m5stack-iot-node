@@ -22,10 +22,10 @@ WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "geothermal";
-char deviceId[64];  // 必要な長さを確保
+char deviceId[64];
 const char* deviceNO = "03"; 
-const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
-const int   mqtt_port   = 8883;    // TLSなら8883
+const char* mqtt_server = MQTT_URL;
+const int   mqtt_port   = 8883;
 
 // GPIOデータピン
 #define ONE_WIRE_BUS 26
@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 50;
+int roomID = 55;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -117,12 +117,7 @@ void TaskSensor(void *pvParameters) {
       if (count == 0) { count = 1; sum = 0; } //エラー処理
       latestAvg = sum / count;
 
-      if(latestAvg > 35.0){
-        WAT = 30;
-      } else {
-        WAT = 0;
-      }
-
+      WAT = calculation(latestAvg);
 
       // dataHistory に保存
       if (dataCount < MAX_DATA_POINTS) {
@@ -419,11 +414,11 @@ void showData(float tmp, float data) {
   }
   drawUI(tmp);
   M5.Lcd.fillRect(0, 240-115, 220, 75, 0x8410);
-  M5.Lcd.setCursor(45,130);
+  M5.Lcd.setCursor(30,130);
   M5.Lcd.setTextSize(4);
   M5.Lcd.setTextColor(WHITE);
-  M5.Lcd.printf("%.1fW\n", data);
-  M5.Lcd.setCursor(45,170);
+  M5.Lcd.printf("%.1fkW\n", data);
+  M5.Lcd.setCursor(30,170);
   M5.Lcd.setTextSize(3);
   M5.Lcd.printf("%.1fC\n", tmp);
 }
@@ -506,7 +501,7 @@ void drawUI(float tmp) {
   int centerY = (M5.Lcd.height() / 2) - 20;
 
   // 温度に応じた背景色、口、写真の表示
-  if (tmp < 35.0){
+  if (tmp < 25.0){
     M5.Lcd.fillRect(0, 0, 320, 120, 0x000F);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -649,6 +644,12 @@ void Sensor_Initialization() {
   }
 }
 
-/*void calculation(float data) {
-
-}*/
+float calculation(float data) {
+  float result = 0.0;
+  if (data > 25){
+    result = 100 + ((data - 25) * 10);
+    return result;
+  } else {
+    return result;
+  }
+}

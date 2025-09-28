@@ -23,7 +23,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "solar";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "01"; 
+const char* deviceNO = "03"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -71,7 +71,7 @@ int pm = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 0;
+int roomID = 55;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -88,6 +88,7 @@ TaskHandle_t TaskDisplayHandle;
 // センサ値共有用
 float latestData = 0.0;
 float latestAvg  = 0.0;
+float WAT = 0.0;
 
 // ==================
 // センサ値取得タスク
@@ -113,14 +114,16 @@ void TaskSensor(void *pvParameters) {
     if (count == 0) { count = 1; sum = 0; } // エラー処理
     latestAvg = sum / count;
 
+    WAT = calculation(latestAvg);
+
     // dataHistory に保存
     if (dataCount < MAX_DATA_POINTS) {
-      dataHistory[dataCount++] = latestAvg;
+      dataHistory[dataCount++] = WAT;
     } else {
       for (int i = 1; i < MAX_DATA_POINTS; i++) {
         dataHistory[i - 1] = dataHistory[i];
       }
-      dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+      dataHistory[MAX_DATA_POINTS - 1] = WAT;
     }
 
     // JSON形式で送信
@@ -137,7 +140,7 @@ void TaskSensor(void *pvParameters) {
                   "\"gpsLat\":\"35.10274\","
                   "\"gpsLon\":\"137.14667\""
                 "}",
-                sessionID, deviceId, device_type, (latestAvg * 1));
+                sessionID, deviceId, device_type, (WAT * 1));
         mqttClient.publish(mqtt_topic, payload);
         SigCount = 0;
       }
@@ -163,7 +166,7 @@ void TaskDisplay(void *pvParameters) {
     // 表示モードに応じて描画
     switch (mode) {
       case MODE_NORMAL:
-        showData(latestAvg);
+        showData(latestAvg, WAT);
         break;
       case MODE_TEMP_GRAPH:
         drawGraph(dataHistory, dataCount, "Solar Power", "kW", PINK);
@@ -387,8 +390,8 @@ void loop() {
 }
 
 //データ表示
-void showData(float data) {
-  if (viewmode == 1) { //変更後の最初のみ実行
+void showData(float data, float wat) {
+  if (viewmode != 0) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
     M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
@@ -396,11 +399,14 @@ void showData(float data) {
     viewmode = 0;
   }
   drawUI(data);
-  M5.Lcd.setCursor(25,145);
-  M5.Lcd.setTextSize(5);
-  M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.fillRect(0, 240-115, 240, 55, 0x8410);
-  M5.Lcd.printf("%.0f kW\n", data);
+  M5.Lcd.fillRect(0, 240-115, 220, 75, 0x8410);
+  M5.Lcd.setCursor(45,130);
+  M5.Lcd.setTextSize(4);
+  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.printf("%.1fkW\n", wat);
+  M5.Lcd.setCursor(45,170);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.printf("%.1f\n", data);
 }
 
 
@@ -481,7 +487,7 @@ void drawUI(float tmp) {
   int centerY = (M5.Lcd.height() / 2) - 20;
 
   // 温度に応じた背景色、口、写真の表示
-  if (tmp < 1500){
+  if (tmp < 2333){
     M5.Lcd.fillRect(0, 0, 320, 120, 0x000F);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -490,7 +496,7 @@ void drawUI(float tmp) {
     }
     // 配列からJPEGを描画
     TJpgDec.drawJpg(240, 122, pic1, sizeof(pic1));
-  } else if (tmp < 3000) {
+  } else if (tmp < 3200) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
     for (int i = -30; i <= 30; i++) {
@@ -603,4 +609,13 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+float calculation(float data) {
+  float result = 0.0;
+  result = data * 0.3 - 700;
+  if (result < 0){
+    result = 0;
+  }
+  return result;
 }
