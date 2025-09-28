@@ -21,9 +21,9 @@
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
-const char* device_type = "handcrank";
+const char* device_type = "hydrogen";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "01"; 
+const char* deviceNO = "5"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 0;
+int roomID = 57;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -182,7 +182,7 @@ void TaskDisplay(void *pvParameters) {
                 "\"gpsLat\":\"35.10274\","
                 "\"gpsLon\":\"137.14667\""
               "}",
-              sessionID, deviceId, device_type, (latestAvg * 1));
+              sessionID, deviceId, device_type, (latestAvg * 20));
       mqttClient.publish(mqtt_topic, payload);
       SigCount = 0;
     }
@@ -278,7 +278,7 @@ void setup() {
   // デバイス登録
   String sessionIdStr = String(roomID);      // int → String
   const char* sessionID = sessionIdStr.c_str();  // String → const char*
-  registerDevice(sessionID, deviceId, "handcrank");
+  registerDevice(sessionID, deviceId, "hydrogen");
 
   // MQTT 接続
   mqttClient.setServer(mqtt_server, mqtt_port);
