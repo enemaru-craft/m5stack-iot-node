@@ -254,7 +254,7 @@ void setup() {
 
   M5.Lcd.setTextSize(3);
   M5.Lcd.setCursor(50, 100);
-  M5.Lcd.println("Starting...");
+  M5.Lcd.println("time setting...");
   // NTP初期化
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -284,6 +284,18 @@ void setup() {
   TJpgDec.setJpgScale(2);          // 1/2倍
   TJpgDec.setSwapBytes(true);      // エンディアン調整
   TJpgDec.setCallback(tft_output); // 出力関数登録
+
+  // 最初のデータが来るまで待つ
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.setCursor(50, 100);
+  M5.Lcd.println("Starting...");
+  while(1){
+    if (SensorSerial.available()) {
+      FirstDetection();
+      break;
+    }
+    delay(100);
+  }
 
   // データ表示の背景を描画
   M5.Lcd.clear(BLACK);
@@ -617,4 +629,59 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+void FirstDetection(){
+  String sessionIdStr = String(roomID);      // int → String
+  const char* sessionID = sessionIdStr.c_str();  // String → const char*
+  // センサ値を取得
+  String data1 = SensorSerial.readStringUntil('\n'); // フラグ
+  String data2 = SensorSerial.readStringUntil('\n'); // 風力
+  String data3 = SensorSerial.readStringUntil('\n'); // 気圧
+  String data4 = SensorSerial.readStringUntil('\n'); // 温度
+  data1.trim(); data2.trim(); data3.trim(); data4.trim();
+
+  // アルファベットと空白をなくす処理
+  int spaceIndex = data2.indexOf(' ');  // 空白の位置を探す
+  String numStr = data2.substring(spaceIndex + 1);  
+  latestData = numStr.toFloat(); 
+
+  // 移動平均を更新
+  history[idx] = latestData;
+  idx = (idx + 1) % WINDOW_SIZE;
+
+  float sum = 0;
+  int count = 0;
+  for (int i = 0; i < WINDOW_SIZE; i++) {
+    if (history[i] != 0) {
+      sum += history[i];
+      count++;
+    }
+  }
+  if (count == 0) { count = 1; sum = 0; } // エラー処理
+  latestAvg = sum / count;
+
+  // dataHistory に保存
+  if (dataCount < MAX_DATA_POINTS) {
+    dataHistory[dataCount++] = latestAvg;
+  } else {
+    for (int i = 1; i < MAX_DATA_POINTS; i++) {
+      dataHistory[i - 1] = dataHistory[i];
+    }
+    dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+  }
+
+  // JSON形式で送信
+  char payload[256];
+  snprintf(payload, sizeof(payload),
+            "{"
+              "\"sessionId\":\"%s\","
+              "\"deviceId\":\"%s\","
+              "\"deviceType\":\"%s\","
+              "\"power\":%.2f,"
+              "\"gpsLat\":\"35.10274\","
+              "\"gpsLon\":\"137.14667\""
+            "}",
+            sessionID, deviceId, device_type, (latestAvg * 1));
+  mqttClient.publish(mqtt_topic, payload);
 }
