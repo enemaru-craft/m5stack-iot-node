@@ -23,7 +23,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "hydrogen";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "5"; 
+const char* deviceNO = "08"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -89,6 +89,7 @@ TaskHandle_t TaskDisplayHandle;
 // センサ値共有用
 float latestData = 0.0;
 float latestAvg  = 0.0;
+float WAT = 0.0;
 
 // ==================
 // センサ値取得タスク
@@ -118,12 +119,14 @@ void TaskSensor(void *pvParameters) {
       if (count == 0) { count = 1; sum = 0; }
       latestAvg = sum / count;
 
+      WAT = calculation(latestAvg);
+
       // 履歴に追加
       if (dataCount < MAX_DATA_POINTS) {
-        dataHistory[dataCount++] = latestAvg;
+        dataHistory[dataCount++] = WAT;
       } else {
         for (int i = 1; i < MAX_DATA_POINTS; i++) dataHistory[i - 1] = dataHistory[i];
-        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+        dataHistory[MAX_DATA_POINTS - 1] = WAT;
       }
 
       // カウントリセット
@@ -161,10 +164,10 @@ void TaskDisplay(void *pvParameters) {
     // 表示モードに応じて描画
     switch (mode) {
       case MODE_NORMAL:
-        showData(latestAvg);
+        showData(latestAvg, WAT);
         break;
       case MODE_TEMP_GRAPH:
-        drawGraph(dataHistory, dataCount, "Temp Graph", "W", PINK);
+        drawGraph(dataHistory, dataCount, "Power Generation", "W", PINK);
         break;
     }
 
@@ -182,7 +185,7 @@ void TaskDisplay(void *pvParameters) {
                 "\"gpsLat\":\"35.10274\","
                 "\"gpsLon\":\"137.14667\""
               "}",
-              sessionID, deviceId, device_type, (latestAvg * 20));
+              sessionID, deviceId, device_type, (WAT * 1));
       mqttClient.publish(mqtt_topic, payload);
       SigCount = 0;
     }
@@ -405,7 +408,7 @@ void loop() {
 }
 
 //データ表示
-void showData(float data) {
+void showData(float tmp, float data) {
   if (viewmode != 0) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
@@ -413,11 +416,15 @@ void showData(float data) {
     M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
     viewmode = 0;
   }
-  drawUI(data);
-  M5.Lcd.setCursor(35,145);
-  M5.Lcd.setTextSize(5);
-  M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.printf("%.1f W\n", data);
+  drawUI(tmp);
+  M5.Lcd.fillRect(0, 240-115, 220, 75, 0x8410);
+  M5.Lcd.setCursor(30,130);
+  M5.Lcd.setTextSize(4);
+  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.printf("%.1fkW\n", data);
+  M5.Lcd.setCursor(30,170);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.printf("%.1fpush\n", tmp);
 }
 
 
@@ -628,4 +635,10 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+float calculation(float data) {
+  float result = 0.0;
+  result = data * 0.7;
+  return result;
 }
