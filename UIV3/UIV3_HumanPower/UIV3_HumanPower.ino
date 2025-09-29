@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 57;
+int roomID = 70;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -417,12 +417,12 @@ void showData(float tmp, float data) {
     viewmode = 0;
   }
   drawUI(tmp);
-  M5.Lcd.fillRect(0, 240-115, 220, 75, 0x8410);
-  M5.Lcd.setCursor(30,130);
+  M5.Lcd.fillRect(0, 240-115, 220, 50, 0x8410);
+  M5.Lcd.setCursor(90,130);
   M5.Lcd.setTextSize(4);
-  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.setTextColor(WHITE,0x8410);
   M5.Lcd.printf("%.1fkW\n", data);
-  M5.Lcd.setCursor(30,170);
+  M5.Lcd.setCursor(95,165);
   M5.Lcd.setTextSize(3);
   M5.Lcd.printf("%.1fpush\n", tmp);
 }
@@ -513,7 +513,7 @@ void drawUI(float tmp) {
       M5.Lcd.drawPixel(centerX + i, centerY - 20 + y, WHITE);
     }
     // 配列からJPEGを描画
-    TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
+    TJpgDec.drawJpg(240, 122, pic1, sizeof(pic1));
   } else if (tmp < 5) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
@@ -521,7 +521,7 @@ void drawUI(float tmp) {
       int y = (int)(0.0 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic2, sizeof(pic2));
+    TJpgDec.drawJpg(240, 122, pic2, sizeof(pic2));
   } else {
     M5.Lcd.fillRect(0, 0, 320, 120, 0xFA20);
     // 口（弧状の線で再現）
@@ -529,7 +529,7 @@ void drawUI(float tmp) {
       int y = (int)(-0.02 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic3, sizeof(pic3));
+    TJpgDec.drawJpg(240, 122, pic3, sizeof(pic3));
   }
 
   // センサ情報が更新されるたびに目のかたちを変更
@@ -575,7 +575,7 @@ void drawButton() {
       M5.Lcd.println("Failed time");
       return;
     }
-    M5.Lcd.setCursor(5, y - 25);
+    M5.Lcd.setCursor(0, y - 25);
     M5.Lcd.printf("%02d:%02d:%02d",
                   timeinfo.tm_hour,
                   timeinfo.tm_min,
