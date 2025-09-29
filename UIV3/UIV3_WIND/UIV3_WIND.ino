@@ -137,7 +137,13 @@ void TaskSensor(void *pvParameters) {
         dataHistory[MAX_DATA_POINTS - 1] = WAT;
       }
 
-      // JSON形式で送信
+      
+      mqttClient.publish(mqtt_topic, payload);
+    }
+    // JSON形式で送信
+    if (SigCount < 30)
+      SigCount++;
+    else {
       char payload[256];
       snprintf(payload, sizeof(payload),
                 "{"
@@ -149,9 +155,7 @@ void TaskSensor(void *pvParameters) {
                   "\"gpsLon\":\"137.14667\""
                 "}",
                 sessionID, deviceId, device_type, WAT);
-      mqttClient.publish(mqtt_topic, payload);
     }
-
     vTaskDelay(100 / portTICK_PERIOD_MS); // 1秒ごと更新
   }
 }
