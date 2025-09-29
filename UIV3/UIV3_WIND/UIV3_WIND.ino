@@ -22,7 +22,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "wind";
 char deviceId[64];
-const char* deviceNO = "01"; 
+const char* deviceNO = "02"; 
 const char* mqtt_server = MQTT_URL;
 const int   mqtt_port   = 8883;
 
@@ -138,7 +138,7 @@ void TaskSensor(void *pvParameters) {
       }
 
       
-      mqttClient.publish(mqtt_topic, payload);
+      
     }
     // JSON形式で送信
     if (SigCount < 30)
@@ -155,6 +155,8 @@ void TaskSensor(void *pvParameters) {
                   "\"gpsLon\":\"137.14667\""
                 "}",
                 sessionID, deviceId, device_type, WAT);
+      mqttClient.publish(mqtt_topic, payload);
+      SigCount = 0;
     }
     vTaskDelay(100 / portTICK_PERIOD_MS); // 1秒ごと更新
   }
@@ -669,6 +671,17 @@ void FirstDetection(){
   }
   if (count == 0) { count = 1; sum = 0; } // エラー処理
   latestAvg = sum / count;
+
+  if(latestAvg > 30){
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.fillScreen(RED);
+    M5.Lcd.setCursor(50, 10);
+    M5.Lcd.println(" ");
+    M5.Lcd.println("Sensor Error");
+    M5.Lcd.println("Reboot...");
+    delay(1000);
+    ESP.restart();
+  }
 
   WAT = calculation(latestAvg);
 
