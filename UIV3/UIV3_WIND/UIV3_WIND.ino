@@ -21,10 +21,10 @@ WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "wind";
-char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "00"; 
-const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
-const int   mqtt_port   = 8883;    // TLSなら8883
+char deviceId[64];
+const char* deviceNO = "01"; 
+const char* mqtt_server = MQTT_URL;
+const int   mqtt_port   = 8883;
 
 // Port A のピンをUARTに利用
 // SDA(GPIO21) → RX, SCL(GPIO22) → TX
@@ -71,7 +71,7 @@ int pm = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 0;
+int roomID = 70;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -88,6 +88,7 @@ TaskHandle_t TaskDisplayHandle;
 // センサ値共有用
 float latestData = 20.0;
 float latestAvg  = 0.0;
+float WAT = 0.0;
 
 // ==================
 // センサ値取得タスク
@@ -124,17 +125,25 @@ void TaskSensor(void *pvParameters) {
       if (count == 0) { count = 1; sum = 0; } // エラー処理
       latestAvg = sum / count;
 
+      WAT = calculation(latestAvg);
+
       // dataHistory に保存
       if (dataCount < MAX_DATA_POINTS) {
-        dataHistory[dataCount++] = latestAvg;
+        dataHistory[dataCount++] = WAT;
       } else {
         for (int i = 1; i < MAX_DATA_POINTS; i++) {
           dataHistory[i - 1] = dataHistory[i];
         }
-        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+        dataHistory[MAX_DATA_POINTS - 1] = WAT;
       }
 
-      // JSON形式で送信
+      
+      
+    }
+    // JSON形式で送信
+    if (SigCount < 30)
+      SigCount++;
+    else {
       char payload[256];
       snprintf(payload, sizeof(payload),
                 "{"
@@ -145,10 +154,10 @@ void TaskSensor(void *pvParameters) {
                   "\"gpsLat\":\"35.10274\","
                   "\"gpsLon\":\"137.14667\""
                 "}",
-                sessionID, deviceId, device_type, (latestAvg * 1));
+                sessionID, deviceId, device_type, WAT);
       mqttClient.publish(mqtt_topic, payload);
+      SigCount = 0;
     }
-
     vTaskDelay(100 / portTICK_PERIOD_MS); // 1秒ごと更新
   }
 }
@@ -171,10 +180,10 @@ void TaskDisplay(void *pvParameters) {
     if (latestAvg >= 0) {
       switch (mode) {
         case MODE_NORMAL:
-          showData(latestAvg);
+          showData(latestAvg, WAT);
           break;
         case MODE_TEMP_GRAPH:
-          drawGraph(dataHistory, dataCount, "Wind Graph", "m/s", PINK);
+          drawGraph(dataHistory, dataCount, "power generation", "kW", PINK);
           break;
       }
     } else {
@@ -248,13 +257,14 @@ void setup() {
     M5.Lcd.print("."); 
   }
   M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.setCursor(0, 0);
   M5.Lcd.println("WiFi connected");
   M5.Lcd.print("IP address = ");
   M5.Lcd.println(WiFi.localIP());
 
   M5.Lcd.setTextSize(3);
-  M5.Lcd.setCursor(50, 100);
-  M5.Lcd.println("Starting...");
+  M5.Lcd.setCursor(20, 100);
+  M5.Lcd.println("time setting...");
   // NTP初期化
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   struct tm timeinfo;
@@ -284,6 +294,18 @@ void setup() {
   TJpgDec.setJpgScale(2);          // 1/2倍
   TJpgDec.setSwapBytes(true);      // エンディアン調整
   TJpgDec.setCallback(tft_output); // 出力関数登録
+
+  // 最初のデータが来るまで待つ
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.setCursor(50, 100);
+  M5.Lcd.println("Starting...");
+  while(1){
+    if (SensorSerial.available()) {
+      FirstDetection();
+      break;
+    }
+    delay(100);
+  }
 
   // データ表示の背景を描画
   M5.Lcd.clear(BLACK);
@@ -401,8 +423,8 @@ void loop() {
 }
 
 //データ表示
-void showData(float data) {
-  if (viewmode == 1) { //変更後の最初のみ実行
+void showData(float data, float wat) {
+  if (viewmode != 0) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
     M5.Lcd.fillRect(0, 240-122, 320, 4, WHITE);
@@ -410,11 +432,14 @@ void showData(float data) {
     viewmode = 0;
   }
   drawUI(data);
-  M5.Lcd.setCursor(25,145);
+  M5.Lcd.fillRect(0, 240-115, 220, 75, 0x8410);
+  M5.Lcd.setCursor(45,130);
   M5.Lcd.setTextSize(4);
-  M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.fillRect(0, 240-115, 240, 55, 0x8410);
-  M5.Lcd.printf("%.2fm/s\n", data);
+  M5.Lcd.setTextColor(WHITE);
+  M5.Lcd.printf("%.1fkW\n", wat);
+  M5.Lcd.setCursor(45,170);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.printf("%.1fm/s\n", data);
 }
 
 
@@ -617,4 +642,61 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+void FirstDetection(){
+  // センサ値を取得
+  String data1 = SensorSerial.readStringUntil('\n'); // フラグ
+  String data2 = SensorSerial.readStringUntil('\n'); // 風力
+  String data3 = SensorSerial.readStringUntil('\n'); // 気圧
+  String data4 = SensorSerial.readStringUntil('\n'); // 温度
+  data1.trim(); data2.trim(); data3.trim(); data4.trim();
+
+  // アルファベットと空白をなくす処理
+  int spaceIndex = data2.indexOf(' ');  // 空白の位置を探す
+  String numStr = data2.substring(spaceIndex + 1);  
+  latestData = numStr.toFloat(); 
+
+  // 移動平均を更新
+  history[idx] = latestData;
+  idx = (idx + 1) % WINDOW_SIZE;
+
+  float sum = 0;
+  int count = 0;
+  for (int i = 0; i < WINDOW_SIZE; i++) {
+    if (history[i] != 0) {
+      sum += history[i];
+      count++;
+    }
+  }
+  if (count == 0) { count = 1; sum = 0; } // エラー処理
+  latestAvg = sum / count;
+
+  if(latestAvg > 30){
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.fillScreen(RED);
+    M5.Lcd.setCursor(50, 10);
+    M5.Lcd.println(" ");
+    M5.Lcd.println("Sensor Error");
+    M5.Lcd.println("Reboot...");
+    delay(1000);
+    ESP.restart();
+  }
+
+  WAT = calculation(latestAvg);
+
+  // dataHistory に保存
+  if (dataCount < MAX_DATA_POINTS) {
+    dataHistory[dataCount++] = WAT;
+  } else {
+    for (int i = 1; i < MAX_DATA_POINTS; i++) {
+      dataHistory[i - 1] = dataHistory[i];
+    }
+    dataHistory[MAX_DATA_POINTS - 1] = WAT;
+  }
+}
+
+float calculation(float data) {
+  float result = data * data * data * 1.22;
+  return result;
 }

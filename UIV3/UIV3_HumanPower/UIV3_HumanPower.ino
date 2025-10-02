@@ -21,9 +21,9 @@
 WiFiClientSecure secureClient;
 PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
-const char* device_type = "handcrank";
+const char* device_type = "hydrogen";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "01"; 
+const char* deviceNO = "08"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 0;
+int roomID = 70;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -89,6 +89,7 @@ TaskHandle_t TaskDisplayHandle;
 // センサ値共有用
 float latestData = 0.0;
 float latestAvg  = 0.0;
+float WAT = 0.0;
 
 // ==================
 // センサ値取得タスク
@@ -118,12 +119,14 @@ void TaskSensor(void *pvParameters) {
       if (count == 0) { count = 1; sum = 0; }
       latestAvg = sum / count;
 
+      WAT = calculation(latestAvg);
+
       // 履歴に追加
       if (dataCount < MAX_DATA_POINTS) {
-        dataHistory[dataCount++] = latestAvg;
+        dataHistory[dataCount++] = WAT;
       } else {
         for (int i = 1; i < MAX_DATA_POINTS; i++) dataHistory[i - 1] = dataHistory[i];
-        dataHistory[MAX_DATA_POINTS - 1] = latestAvg;
+        dataHistory[MAX_DATA_POINTS - 1] = WAT;
       }
 
       // カウントリセット
@@ -161,10 +164,10 @@ void TaskDisplay(void *pvParameters) {
     // 表示モードに応じて描画
     switch (mode) {
       case MODE_NORMAL:
-        showData(latestAvg);
+        showData(latestAvg, WAT);
         break;
       case MODE_TEMP_GRAPH:
-        drawGraph(dataHistory, dataCount, "Temp Graph", "W", PINK);
+        drawGraph(dataHistory, dataCount, "Power Generation", "W", PINK);
         break;
     }
 
@@ -182,7 +185,7 @@ void TaskDisplay(void *pvParameters) {
                 "\"gpsLat\":\"35.10274\","
                 "\"gpsLon\":\"137.14667\""
               "}",
-              sessionID, deviceId, device_type, (latestAvg * 1));
+              sessionID, deviceId, device_type, (WAT * 1));
       mqttClient.publish(mqtt_topic, payload);
       SigCount = 0;
     }
@@ -278,7 +281,7 @@ void setup() {
   // デバイス登録
   String sessionIdStr = String(roomID);      // int → String
   const char* sessionID = sessionIdStr.c_str();  // String → const char*
-  registerDevice(sessionID, deviceId, "handcrank");
+  registerDevice(sessionID, deviceId, "hydrogen");
 
   // MQTT 接続
   mqttClient.setServer(mqtt_server, mqtt_port);
@@ -405,7 +408,7 @@ void loop() {
 }
 
 //データ表示
-void showData(float data) {
+void showData(float tmp, float data) {
   if (viewmode != 0) { //変更後の最初のみ実行
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.fillRect(0, 240-120, 320, 120, 0x8410);
@@ -413,11 +416,15 @@ void showData(float data) {
     M5.Lcd.fillRect(0, 240-38, 320, 4, WHITE);
     viewmode = 0;
   }
-  drawUI(data);
-  M5.Lcd.setCursor(35,145);
-  M5.Lcd.setTextSize(5);
-  M5.Lcd.setTextColor(WHITE, 0x8410);
-  M5.Lcd.printf("%.1f W\n", data);
+  drawUI(tmp);
+  M5.Lcd.fillRect(0, 240-115, 220, 50, 0x8410);
+  M5.Lcd.setCursor(90,130);
+  M5.Lcd.setTextSize(4);
+  M5.Lcd.setTextColor(WHITE,0x8410);
+  M5.Lcd.printf("%.1fkW\n", data);
+  M5.Lcd.setCursor(95,165);
+  M5.Lcd.setTextSize(3);
+  M5.Lcd.printf("%.1fpush\n", tmp);
 }
 
 
@@ -506,7 +513,7 @@ void drawUI(float tmp) {
       M5.Lcd.drawPixel(centerX + i, centerY - 20 + y, WHITE);
     }
     // 配列からJPEGを描画
-    TJpgDec.drawJpg(230, 122, pic1, sizeof(pic1));
+    TJpgDec.drawJpg(240, 122, pic1, sizeof(pic1));
   } else if (tmp < 5) {
     M5.Lcd.fillRect(0, 0, 320, 120, 0x03E0);
     // 口（弧状の線で再現）
@@ -514,7 +521,7 @@ void drawUI(float tmp) {
       int y = (int)(0.0 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic2, sizeof(pic2));
+    TJpgDec.drawJpg(240, 122, pic2, sizeof(pic2));
   } else {
     M5.Lcd.fillRect(0, 0, 320, 120, 0xFA20);
     // 口（弧状の線で再現）
@@ -522,7 +529,7 @@ void drawUI(float tmp) {
       int y = (int)(-0.02 * i * i);  // 放物線（口のカーブ）
       M5.Lcd.drawPixel(centerX + i, centerY - 10 + y, WHITE);
     }
-    TJpgDec.drawJpg(230, 122, pic3, sizeof(pic3));
+    TJpgDec.drawJpg(240, 122, pic3, sizeof(pic3));
   }
 
   // センサ情報が更新されるたびに目のかたちを変更
@@ -568,7 +575,7 @@ void drawButton() {
       M5.Lcd.println("Failed time");
       return;
     }
-    M5.Lcd.setCursor(5, y - 25);
+    M5.Lcd.setCursor(0, y - 25);
     M5.Lcd.printf("%02d:%02d:%02d",
                   timeinfo.tm_hour,
                   timeinfo.tm_min,
@@ -628,4 +635,10 @@ void IDUI() {
   M5.Lcd.setTextColor(YELLOW);
   M5.Lcd.setCursor(110, 210);
   M5.Lcd.print("Press B to Decide");
+}
+
+float calculation(float data) {
+  float result = 0.0;
+  result = data * 0.7;
+  return result;
 }
