@@ -9,8 +9,7 @@ M5-"セッションID(ユーザが設定)"-"発電モジュール名"-"固有番
         太陽光-solar
         風力-wind
         地熱-geothermal
-        水力-hydrogen
-        手回し-handcrank
+        手回し-hydrogen
     
     固有番号は各デバイス個別の連番とする
 
