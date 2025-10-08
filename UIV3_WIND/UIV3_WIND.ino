@@ -22,7 +22,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "wind";
 char deviceId[64];
-const char* deviceNO = "01"; 
+const char* deviceNO = "02"; 
 const char* mqtt_server = MQTT_URL;
 const int   mqtt_port   = 8883;
 
@@ -71,7 +71,7 @@ int pm = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 70;
+int roomID = 0;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -697,6 +697,6 @@ void FirstDetection(){
 }
 
 float calculation(float data) {
-  float result = data * data * data * 1.22;
+  float result = data * data * data * 1.75;
   return result;
 }
