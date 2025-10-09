@@ -23,7 +23,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "geothermal";
 char deviceId[64];
-const char* deviceNO = "03"; 
+const char* deviceNO = "04"; 
 const char* mqtt_server = MQTT_URL;
 const int   mqtt_port   = 8883;
 
@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 70;
+int roomID = 0;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -647,7 +647,7 @@ void Sensor_Initialization() {
 float calculation(float data) {
   float result = 0.0;
   if (data > 25){
-    result = 100 + ((data - 25) * 10);
+    result = 200 + ((data - 25) * 10);
     return result;
   } else {
     return result;

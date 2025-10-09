@@ -23,7 +23,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "solar";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "01"; 
+const char* deviceNO = "03"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
@@ -71,7 +71,7 @@ int pm = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 70;
+int roomID = 0;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
@@ -613,7 +613,7 @@ void IDUI() {
 
 float calculation(float data) {
   float result = 0.0;
-  result = data * 0.3 - 700;
+  result = data * 0.4 - 400;
   if (result < 0){
     result = 0;
   }
