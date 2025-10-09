@@ -23,7 +23,7 @@ PubSubClient mqttClient(secureClient);
 const char* mqtt_topic = "register/power";  // MQTTトピック
 const char* device_type = "hydrogen";
 char deviceId[64];  // 必要な長さを確保
-const char* deviceNO = "08"; 
+const char* deviceNO = "01"; 
 const char* mqtt_server = MQTT_URL; // AWS IoT Core のエンドポイントなど
 const int   mqtt_port   = 8883;    // TLSなら8883
 
