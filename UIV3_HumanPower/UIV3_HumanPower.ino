@@ -72,7 +72,7 @@ int face = 0;
 int viewmode = 0; // 0がデータ,1がグラフ
 
 // ルームID
-int roomID = 70;
+int roomID = 0;
 bool decided = false; // 決定されたかどうか
 
 // NTPサーバ設定
